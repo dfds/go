@@ -1,3 +1,3 @@
-module go.dfds.cloud/base
+module go.dfds.cloud
 
 go 1.17
