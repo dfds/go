@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,34 @@ func GetEnvValue(key string, def string) string {
 	}
 
 	return val
+}
+
+func GetEnvInt(key string, def int) (int, error) {
+	val := os.Getenv(key)
+	if len(val) == 0 {
+		return def, nil
+	}
+
+	payload, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, err
+	}
+
+	return payload, nil
+}
+
+func GetEnvInt64(key string, def int64) (int64, error) {
+	val := os.Getenv(key)
+	if len(val) == 0 {
+		return def, nil
+	}
+
+	payload, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return payload, nil
 }
 
 func GetEnvBool(key string, def bool) bool {
@@ -31,4 +60,3 @@ func GetEnvBool(key string, def bool) bool {
 
 	return def
 }
-
