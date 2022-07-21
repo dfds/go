@@ -29,8 +29,8 @@ type DoHttpRequestParameters struct {
 	DefaultSession   Session
 }
 
-func DoHttpRequest(req DoHttpRequestParameters) (Response, error) {
-	var baseResp Response
+func DoHttpRequest[T any](req DoHttpRequestParameters) (T, error) {
+	var baseResp T
 	err := SetAuthHeader(req.Req, req.ParameterSession, req.DefaultSession)
 	if err != nil {
 		return baseResp, err
@@ -71,7 +71,7 @@ func HandlePagedResponse[T any](r DoHttpRequestParameters, initialResp Response)
 			return payload, err
 		}
 
-		nextResp, err := DoHttpRequest(DoHttpRequestParameters{
+		nextResp, err := DoHttpRequest[Response](DoHttpRequestParameters{
 			HttpClient:       r.HttpClient,
 			Req:              req,
 			ParameterSession: r.ParameterSession,

@@ -2,9 +2,10 @@ package service_accounts_v2
 
 import (
 	"fmt"
-	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 	"net/http"
 	"time"
+
+	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 )
 
 type ServiceAccountsClient struct {
@@ -50,7 +51,7 @@ func (c *ServiceAccountsClient) GetServiceAccounts(session confluent_util.Sessio
 	query.Add("page_token", request.PageToken)
 	req.URL.RawQuery = query.Encode()
 
-	resp, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	resp, err := confluent_util.DoHttpRequest[confluent_util.Response](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,

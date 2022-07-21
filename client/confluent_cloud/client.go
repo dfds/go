@@ -1,9 +1,11 @@
 package confluent_cloud
 
 import (
-	"go.dfds.cloud/client/confluent_cloud/service_accounts_v2"
-	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 	"net/http"
+
+	"go.dfds.cloud/client/confluent_cloud/service_accounts_v2"
+	topics "go.dfds.cloud/client/confluent_cloud/topics_v3"
+	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 )
 
 type Client struct {
@@ -28,4 +30,8 @@ func (c *Client) SetDefaultSession(session confluent_util.Session) {
 
 func (c *Client) ServiceAccountsV2() *service_accounts_v2.ServiceAccountsClient {
 	return service_accounts_v2.NewClient(c.defaultSession, c.http)
+}
+
+func (c *Client) TopicsV3() *topics.TopicsClient {
+	return topics.NewClient(c.defaultSession, c.http)
 }
