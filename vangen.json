@@ -1,0 +1,16 @@
+{
+  "domain": "go.dfds.cloud",
+  "repositories": [
+    {
+      "subs": [
+        "utils",
+        "client/confluent_cloud"
+      ],
+      "url": "https://github.com/dfds/go"
+    },
+    {
+      "prefix": "emcla",
+      "url": "https://github.com/dfds/emcla-go"
+    }
+  ]
+}
