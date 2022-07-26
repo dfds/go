@@ -34,7 +34,7 @@ func (e *ErrorResponseEntity) Error() string {
 	return e.Message
 }
 
-type TopicRequestEntity[T any, E any] struct {
+type TopicRequestEntity[T any, E any] struct { // Accepts both Payload and Error
 	Endpoint  string
 	ClusterID string
 	TopicName *string `json:"topic_name,omitempty"`
