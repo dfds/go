@@ -33,34 +33,35 @@ type DoHttpRequestParameters struct {
 	DefaultSession   Session
 }
 
-type ErrorResponseEntity struct {
-	ErrorCode int    `json:"error_code"`
-	Message   string `json:"message"`
-}
+// type ErrorResponseEntity struct {
+// 	ErrorCode int    `json:"error_code"`
+// 	Message   string `json:"message"`
+// }
 
-func (e *ErrorResponseEntity) Error() string {
-	return e.Message
-}
+// func (e *ErrorResponseEntity) Error() string {
+// 	return e.Message
+// }
 
-type ErrorHandler interface {
-	Handle(e error, response *http.Response) (*ErrorResponseEntity, error)
+type ErrorHandler[T any] interface {
+	Handle(e error, response *http.Response) (*T, error)
 }
 
 // type DoHTTPRequestResponse struct{}
-func DoHttpRequest(req DoHttpRequestParameters, errorHandler ErrorHandler) (*http.Response, *ErrorResponseEntity, error) {
+func DoHttpRequest[T any](req DoHttpRequestParameters, errorHandler ErrorHandler[T]) (*http.Response, *T, error) {
+	var errorResponseEntity *T
 	err := SetAuthHeader(req.Req, req.ParameterSession, req.DefaultSession)
 	if err != nil {
-		return nil, nil, err
+		return nil, errorResponseEntity, err
 	}
 
 	resp, err := req.HttpClient.Do(req.Req)
 	if err != nil {
-		return resp, nil, err
+		return resp, errorResponseEntity, err
 	}
 
-	errorResponseEntity, err := errorHandler.Handle(err, resp)
+	errorResponseEntity, err = errorHandler.Handle(err, resp)
 	if err != nil {
-		return nil, nil, err
+		return nil, errorResponseEntity, err
 	}
 
 	return resp, errorResponseEntity, nil

@@ -25,32 +25,32 @@ func NewClient(defaultSession confluent_util.Session, defaultHttp *http.Client) 
 	}
 }
 
-// func (e *ErrorResponseEntity) Error() string {
-// 	return e.Message
-// }
+type ErrorResponseEntity struct {
+	ErrorCode int    `json:"error_code"`
+	Message   string `json:"message"`
+}
 
-// type ErrorResponseEntity struct {
-// 	ErrorCode int    `json:"error_code"`
-// 	Message   string `json:"message"`
-// }
+func (e *ErrorResponseEntity) Error() string {
+	return e.Message
+}
 
-type TopicRequestEntity[T any] struct {
+type TopicRequestEntity[T any, E any] struct {
 	Endpoint  string
 	ClusterID string
 	TopicName *string `json:"topic_name,omitempty"`
 	Payload   *T
 }
 
-func (c *TopicRequestEntity[T]) Handle(e error, r *http.Response) (*confluent_util.ErrorResponseEntity, error) { // Will be called automatically on CreateTopicsRequest
+func (c *TopicRequestEntity[T, E]) Handle(e error, r *http.Response) (*E, error) { // Will be called automatically on CreateTopicsRequest - implements the interface
+	var errorMessage *E
 	if r.StatusCode != 204 && r.StatusCode >= 400 {
-		errorMessage, err := confluent_util.DeserializeResponse[confluent_util.ErrorResponseEntity](r.Body)
+		errorMessage, err := confluent_util.DeserializeResponse[E](r.Body)
 		if err != nil {
-
-			return nil, err // TODO: need to return the original error
+			return nil, err
 		}
 		return &errorMessage, nil
 	}
-	return nil, nil
+	return errorMessage, nil
 }
 
 // Create Request
@@ -105,7 +105,7 @@ type CreateTopicResponseEntity struct {
 	AuthorizedOperations []interface{} `json:"authorized_operations"`
 }
 
-func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[CreateTopicsRequestPayload]) (CreateTopicResponseEntity, error) {
+func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[CreateTopicsRequestPayload, ErrorResponseEntity]) (CreateTopicResponseEntity, error) {
 	var payload CreateTopicResponseEntity
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
@@ -115,7 +115,7 @@ func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request 
 	if err != nil {
 		return payload, err
 	}
-	r, errorResponseEntity, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,
@@ -147,12 +147,12 @@ type DeleteTopicsRequest struct {
 	TopicName string
 }
 
-func (c *TopicsClient) DeleteKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any]) error {
+func (c *TopicsClient) DeleteKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) error {
 	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
 	if err != nil {
 		return err
 	}
-	_, errorResponseEntity, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	_, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,
@@ -196,13 +196,13 @@ type GetTopicResponseEntity struct { // Note: same as CreateTopicResponseEntity
 	} `json:"partition_reassignments"`
 }
 
-func (c *TopicsClient) GetTopicRequest(session confluent_util.Session, request TopicRequestEntity[any]) (GetTopicResponseEntity, error) {
+func (c *TopicsClient) GetTopicRequest(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicResponseEntity, error) {
 	var payload GetTopicResponseEntity
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
 	if err != nil {
 		return payload, err
 	}
-	r, errorResponseEntity, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,
@@ -237,13 +237,13 @@ type ListTopicResponseEntity struct {
 	Data []GetTopicResponseEntity `json:"data"`
 }
 
-func (c *TopicsClient) ListTopicRequest(session confluent_util.Session, request TopicRequestEntity[any]) (ListTopicResponseEntity, error) {
+func (c *TopicsClient) ListTopicRequest(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (ListTopicResponseEntity, error) {
 	var payload ListTopicResponseEntity
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics"), nil)
 	if err != nil {
 		return payload, err
 	}
-	r, errorResponseEntity, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,
@@ -282,7 +282,7 @@ type UpdateTopicsRequest struct {
 	Payload   UpdateTopicRequestPayload
 }
 
-func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[UpdateTopicRequestPayload]) error {
+func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[UpdateTopicRequestPayload, ErrorResponseEntity]) error {
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return err
@@ -291,7 +291,7 @@ func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request 
 	if err != nil {
 		return err
 	}
-	_, errorResponseEntity, err := confluent_util.DoHttpRequest(confluent_util.DoHttpRequestParameters{
+	_, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
 		ParameterSession: session,
