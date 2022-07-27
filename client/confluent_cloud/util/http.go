@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -96,40 +95,28 @@ func HandlePagedResponse[P any, E any](r DoHttpRequestParameters, initialResp Re
 		if nextUrl == "" {
 			break
 		}
-		fmt.Println("Printing next url")
-		fmt.Println(nextUrl)
 		req, err := http.NewRequest("GET", nextUrl, nil)
-		fmt.Println("new req")
 		if err != nil {
-			fmt.Println("Error line util 102")
 			return payload, errorResponseEntity, err
 		}
-		fmt.Println("new DoHttpRequest")
 		nextRespRaw, errorResponseEntity, err := DoHttpRequest(DoHttpRequestParameters{
 			HttpClient:       r.HttpClient,
 			Req:              req,
 			ParameterSession: r.ParameterSession,
 			DefaultSession:   r.DefaultSession,
 		}, errorHandler)
-		fmt.Println("Done DoHttpRequest")
 		if err != nil {
-			fmt.Println("Error line util 112")
 			return payload, errorResponseEntity, err
 		}
 		if errorResponseEntity != nil {
-			fmt.Println("Error line util 116")
 			return payload, errorResponseEntity, err
 		}
-		fmt.Println("DeserializeResponse ..")
 		nextResp, err := DeserializeResponse[Response](nextRespRaw.Body)
 		if err != nil {
-			fmt.Println("Error line util 121")
 			return payload, errorResponseEntity, err
 		}
-		fmt.Println("DeserializeResponse Done.")
 		container = append(container, nextResp.Data)
 		nextUrl = nextResp.Metadata.Next
-		fmt.Println("nextUrl assign.")
 	}
 	// Deserialise
 	// TODO: Perhaps replace with https://github.com/mitchellh/mapstructure
@@ -140,22 +127,18 @@ func HandlePagedResponse[P any, E any](r DoHttpRequestParameters, initialResp Re
 			denested = append(denested, object.(map[string]interface{}))
 		}
 	}
-	fmt.Println("loop done.")
 	for _, d := range denested {
 		var deserialised P
 		serialised, err := json.Marshal(d)
 		if err != nil {
-			fmt.Println("Error line util 142")
 			return payload, errorResponseEntity, err
 		}
 		err = json.Unmarshal(serialised, &deserialised)
 		if err != nil {
-			fmt.Println("Error line util 147")
 			return payload, errorResponseEntity, err
 		}
 		payload = append(payload, deserialised)
 	}
-	fmt.Println("Are we here?.")
 	return payload, errorResponseEntity, nil
 }
 

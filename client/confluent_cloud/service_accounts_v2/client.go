@@ -32,8 +32,7 @@ type ErrorResponseEntity struct {
 }
 
 func (e *ErrorResponseEntity) Error() string { // TODO: Fix this because it should read from ErrorResponseEntity and not to always return string!!
-	// fmt.Println(e.Errors)
-	return "Some Error" // e.Message
+	return fmt.Sprint(e.Errors)
 }
 
 type ServiceAccountRequestEntity[T any, E any] struct {
@@ -57,11 +56,6 @@ type PaginationParameters struct {
 	PageSize  string `json:"page_size"`
 	PageToken string `json:"page_token"`
 }
-
-// type GetServiceAccountsRequest struct {
-// 	PageSize  string `json:"page_size"`
-// 	PageToken string `json:"page_token"`
-// }
 
 type GetServiceAccountResponseEntity struct {
 	APIVersion  string `json:"api_version"`
@@ -97,16 +91,13 @@ func (c *ServiceAccountsClient) ListServiceAccounts(session confluent_util.Sessi
 		DefaultSession:   c.defaultSession,
 	}, &request)
 	if err != nil {
-		fmt.Println("Error line 100")
 		return payload, err
 	}
 	if errorResponseEntity != nil {
-		fmt.Println("Error line 104")
 		return payload, errorResponseEntity
 	}
 	initialResp, err := confluent_util.DeserializeResponse[util.Response](r.Body)
 	if err != nil {
-		fmt.Println("Error line 109")
 		return payload, err
 	}
 	// ==
@@ -118,11 +109,9 @@ func (c *ServiceAccountsClient) ListServiceAccounts(session confluent_util.Sessi
 		DefaultSession:   c.defaultSession,
 	}, initialResp, &request)
 	if err != nil {
-		fmt.Println("Error line 120")
 		return payload, err
 	}
 	if errorResponseEntity != nil {
-		fmt.Println("Error line 124")
 		return payload, errorResponseEntity
 	}
 	// ===
@@ -132,7 +121,6 @@ func (c *ServiceAccountsClient) ListServiceAccounts(session confluent_util.Sessi
 	// 	return payload, err
 	// }
 	// fmt.Println(string(bodyBytes))
-	fmt.Println("Client is done?")
 	return payload, err // TODO: This should return errorResponseEntity!! and Test error message with error from client
 }
 
