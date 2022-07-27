@@ -18,15 +18,6 @@ type DoHttpRequestParameters struct {
 	DefaultSession   Session
 }
 
-// type ErrorResponseEntity struct {
-// 	ErrorCode int    `json:"error_code"`
-// 	Message   string `json:"message"`
-// }
-
-// func (e *ErrorResponseEntity) Error() string {
-// 	return e.Message
-// }
-
 type Response struct {
 	ApiVersion string           `json:"api_version,omitempty"`
 	Kind       string           `json:"kind,omitempty"`
@@ -141,62 +132,3 @@ func HandlePagedResponse[P any, E any](r DoHttpRequestParameters, initialResp Re
 	}
 	return payload, errorResponseEntity, nil
 }
-
-// func HandlePagedResponse[T any](r DoHttpRequestParameters, initialResp Response) ([]T, error) { // TODO: Need testing with statuscode
-// 	payload := []T{}
-// 	container := []interface{}{}
-// 	container = append(container, initialResp.Data)
-
-// 	nextUrl := initialResp.Metadata.Next
-
-// 	for {
-// 		if nextUrl == "" {
-// 			break
-// 		}
-// 		fmt.Println(nextUrl)
-// 		req, err := http.NewRequest("GET", nextUrl, nil)
-// 		if err != nil {
-// 			return payload, err
-// 		}
-
-// 		nextResp, err := DoHttpRequest(DoHttpRequestParameters{
-// 			HttpClient:       r.HttpClient,
-// 			Req:              req,
-// 			ParameterSession: r.ParameterSession,
-// 			DefaultSession:   r.DefaultSession,
-// 		})
-// 		if err != nil {
-// 			return payload, err
-// 		}
-
-// 		// TODO: Deserialize
-
-// 		container = append(container, nextResp.Data)
-// 		nextUrl = nextResp.Metadata.Next
-// 	}
-
-// 	// Deserialise
-// 	// TODO: Perhaps replace with https://github.com/mitchellh/mapstructure
-// 	denested := []map[string]interface{}{}
-// 	for _, c := range container {
-// 		objects := c.([]interface{})
-// 		for _, object := range objects {
-// 			denested = append(denested, object.(map[string]interface{}))
-// 		}
-// 	}
-
-// 	for _, d := range denested {
-// 		var deserialised T
-// 		serialised, err := json.Marshal(d)
-// 		if err != nil {
-// 			return tempStatusCode, payload, err
-// 		}
-// 		err = json.Unmarshal(serialised, &deserialised)
-// 		if err != nil {
-// 			return tempStatusCode, payload, err
-// 		}
-// 		payload = append(payload, deserialised)
-// 	}
-
-// 	return payload, nil
-// }

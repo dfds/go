@@ -34,6 +34,8 @@ func (e *ErrorResponseEntity) Error() string {
 	return e.Message
 }
 
+// T = Payload
+// E = any or interface{}
 type TopicRequestEntity[T any, E any] struct { // Accepts both Payload and Error
 	Endpoint  string
 	ClusterID string
@@ -52,25 +54,6 @@ func (c *TopicRequestEntity[T, E]) Handle(e error, r *http.Response) (*E, error)
 	}
 	return errorMessage, nil
 }
-
-// Create Request
-// type CreateTopicsRequest struct {
-// 	Endpoint  string
-// 	ClusterID string
-// 	Payload   CreateTopicsRequestPayload
-// }
-
-// func (c *CreateTopicsRequest) Handle(e error, r *http.Response) *confluent_util.ErrorResponseEntity { // Will be called automatically on CreateTopicsRequest
-// 	fmt.Println("Printing statuscode")
-// 	fmt.Println(r.StatusCode)
-// 	if r.StatusCode != 204 && r.StatusCode >= 400 {
-// 		errorMessage, err := confluent_util.DeserializeResponse[confluent_util.ErrorResponseEntity](r.Body)
-// 		if err != nil {
-// 			return &errorMessage
-// 		}
-// 	}
-// 	return nil
-// }
 
 type CreateTopicsRequestPayload struct {
 	TopicName         string `json:"topic_name"`

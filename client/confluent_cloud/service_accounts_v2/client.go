@@ -31,10 +31,12 @@ type ErrorResponseEntity struct {
 	} `json:"errors"`
 }
 
-func (e *ErrorResponseEntity) Error() string { // TODO: Fix this because it should read from ErrorResponseEntity and not to always return string!!
+func (e *ErrorResponseEntity) Error() string {
 	return fmt.Sprint(e.Errors)
 }
 
+// T = Payload
+// E = any or interface{}
 type ServiceAccountRequestEntity[T any, E any] struct {
 	ServiceAccountName *string `json:"service_account_name,omitempty"`
 	Payload            *T
@@ -100,7 +102,6 @@ func (c *ServiceAccountsClient) ListServiceAccounts(session confluent_util.Sessi
 	if err != nil {
 		return payload, err
 	}
-	// ==
 
 	payload, errorResponseEntity, err = confluent_util.HandlePagedResponse[GetServiceAccountResponseEntity, ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
@@ -114,46 +115,5 @@ func (c *ServiceAccountsClient) ListServiceAccounts(session confluent_util.Sessi
 	if errorResponseEntity != nil {
 		return payload, errorResponseEntity
 	}
-	// ===
-
-	// bodyBytes, err := ioutil.ReadAll(r.Body)
-	// if err != nil {
-	// 	return payload, err
-	// }
-	// fmt.Println(string(bodyBytes))
-	return payload, err // TODO: This should return errorResponseEntity!! and Test error message with error from client
+	return payload, nil
 }
-
-// func (c *ServiceAccountsClient) GetServiceAccounts(session confluent_util.Session, request GetServiceAccountsRequest) ([]GetServiceAccountResponseEntity, error) {
-// 	var payload []GetServiceAccountResponseEntity
-// 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", confluent_util.BASE_ENDPOINT, "/iam/v2/service-accounts"), nil)
-// 	if err != nil {
-// 		return payload, err
-// 	}
-
-// 	query := req.URL.Query()
-// 	query.Add("page_size", request.PageSize)
-// 	query.Add("page_token", request.PageToken)
-// 	req.URL.RawQuery = query.Encode()
-
-// 	resp, err := confluent_util.DoHttpRequest[confluent_util.Response](confluent_util.DoHttpRequestParameters{
-// 		HttpClient:       c.http,
-// 		Req:              req,
-// 		ParameterSession: session,
-// 		DefaultSession:   c.defaultSession,
-// 	})
-// 	if err != nil {
-// 		return payload, err
-// 	}
-
-// 	payload, err = confluent_util.HandlePagedResponse[GetServiceAccountResponseEntity](confluent_util.DoHttpRequestParameters{
-// 		HttpClient:       c.http,
-// 		Req:              nil,
-// 		ParameterSession: session,
-// 		DefaultSession:   c.defaultSession,
-// 	}, resp)
-// 	if err != nil {
-// 		return payload, err
-// 	}
-// 	return payload, err
-// }
