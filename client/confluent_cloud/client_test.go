@@ -2,10 +2,11 @@ package confluent_cloud
 
 import (
 	"fmt"
-	"go.dfds.cloud/client/confluent_cloud/service_accounts_v2"
-	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 	"log"
 	"testing"
+
+	"go.dfds.cloud/client/confluent_cloud/service_accounts_v2"
+	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 )
 
 func TestClientAuthenticate(t *testing.T) {
@@ -17,7 +18,7 @@ func TestClientAuthenticate(t *testing.T) {
 
 	cloudSession := confluent_util.NewCloudApiKeySession("")
 
-	resp, err := client.ServiceAccountsV2().GetServiceAccounts(cloudSession, service_accounts_v2.GetServiceAccountsRequest{
+	resp, err := client.ServiceAccountsV2().ListServiceAccounts(cloudSession, service_accounts_v2.ServiceAccountRequestEntity[any, service_accounts_v2.ErrorResponseEntity]{}, service_accounts_v2.PaginationParameters{
 		PageSize:  "100",
 		PageToken: "",
 	})
