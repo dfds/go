@@ -2,10 +2,21 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 )
+
+func CreateStringPointer(s string) *string {
+	return &s
+}
+
+type DoHttpRequestParameters struct {
+	HttpClient       *http.Client
+	Req              *http.Request
+	ParameterSession Session
+	DefaultSession   Session
+}
 
 type Response struct {
 	ApiVersion string           `json:"api_version,omitempty"`
@@ -22,40 +33,50 @@ type ResponseMetadata struct {
 	TotalSize int    `json:"totalSize,omitempty"`
 }
 
-type DoHttpRequestParameters struct {
-	HttpClient       *http.Client
-	Req              *http.Request
-	ParameterSession Session
-	DefaultSession   Session
+type ErrorHandler[T any] interface {
+	Handle(e error, response *http.Response) (*T, error)
 }
 
-func DoHttpRequest[T any](req DoHttpRequestParameters) (T, error) {
-	var baseResp T
+// type DoHTTPRequestResponse struct{}
+// T = ErrorResponseEntity that implements Error interface
+func DoHttpRequest[T any](req DoHttpRequestParameters, errorHandler ErrorHandler[T]) (*http.Response, *T, error) {
+	var errorResponseEntity *T
 	err := SetAuthHeader(req.Req, req.ParameterSession, req.DefaultSession)
 	if err != nil {
-		return baseResp, err
+		return nil, errorResponseEntity, err
 	}
 
 	resp, err := req.HttpClient.Do(req.Req)
 	if err != nil {
-		return baseResp, err
+		return resp, errorResponseEntity, err
 	}
 
-	respBytes, err := ioutil.ReadAll(resp.Body)
+	errorResponseEntity, err = errorHandler.Handle(err, resp)
 	if err != nil {
-		return baseResp, err
+		return nil, errorResponseEntity, err
 	}
 
-	err = json.Unmarshal(respBytes, &baseResp)
-	if err != nil {
-		return baseResp, err
-	}
-
-	return baseResp, nil
+	return resp, errorResponseEntity, nil
 }
 
-func HandlePagedResponse[T any](r DoHttpRequestParameters, initialResp Response) ([]T, error) {
-	payload := []T{}
+func DeserializeResponse[T any](body io.ReadCloser) (T, error) {
+	var payload T
+	bodyBytes, err := ioutil.ReadAll(body)
+	if err != nil {
+		return payload, err
+	}
+	err = json.Unmarshal(bodyBytes, &payload)
+	if err != nil {
+		return payload, err
+	}
+	return payload, nil
+}
+
+// P = ResponseEntity
+// E = ErrorResponseEntity
+func HandlePagedResponse[P any, E any](r DoHttpRequestParameters, initialResp Response, errorHandler ErrorHandler[E]) ([]P, *E, error) {
+	var errorResponseEntity *E
+	payload := []P{}
 	container := []interface{}{}
 	container = append(container, initialResp.Data)
 
@@ -65,26 +86,29 @@ func HandlePagedResponse[T any](r DoHttpRequestParameters, initialResp Response)
 		if nextUrl == "" {
 			break
 		}
-		fmt.Println(nextUrl)
 		req, err := http.NewRequest("GET", nextUrl, nil)
 		if err != nil {
-			return payload, err
+			return payload, errorResponseEntity, err
 		}
-
-		nextResp, err := DoHttpRequest[Response](DoHttpRequestParameters{
+		nextRespRaw, errorResponseEntity, err := DoHttpRequest(DoHttpRequestParameters{
 			HttpClient:       r.HttpClient,
 			Req:              req,
 			ParameterSession: r.ParameterSession,
 			DefaultSession:   r.DefaultSession,
-		})
+		}, errorHandler)
 		if err != nil {
-			return payload, err
+			return payload, errorResponseEntity, err
 		}
-
+		if errorResponseEntity != nil {
+			return payload, errorResponseEntity, err
+		}
+		nextResp, err := DeserializeResponse[Response](nextRespRaw.Body)
+		if err != nil {
+			return payload, errorResponseEntity, err
+		}
 		container = append(container, nextResp.Data)
 		nextUrl = nextResp.Metadata.Next
 	}
-
 	// Deserialise
 	// TODO: Perhaps replace with https://github.com/mitchellh/mapstructure
 	denested := []map[string]interface{}{}
@@ -94,19 +118,17 @@ func HandlePagedResponse[T any](r DoHttpRequestParameters, initialResp Response)
 			denested = append(denested, object.(map[string]interface{}))
 		}
 	}
-
 	for _, d := range denested {
-		var deserialised T
+		var deserialised P
 		serialised, err := json.Marshal(d)
 		if err != nil {
-			return payload, err
+			return payload, errorResponseEntity, err
 		}
 		err = json.Unmarshal(serialised, &deserialised)
 		if err != nil {
-			return payload, err
+			return payload, errorResponseEntity, err
 		}
 		payload = append(payload, deserialised)
 	}
-
-	return payload, nil
+	return payload, errorResponseEntity, nil
 }
