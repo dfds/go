@@ -56,16 +56,13 @@ func (c *TopicRequestEntity[T, E]) Handle(e error, r *http.Response) (*E, error)
 }
 
 type CreateTopicsRequestPayload struct {
-	TopicName         string `json:"topic_name"`
-	PartitionsCount   int    `json:"partitions_count,omitempty"`
-	ReplicationFactor int    `json:"replication_factor,omitempty"`
-	Configs           []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	} `json:"configs,omitempty"`
+	TopicName         string              `json:"topic_name"`
+	PartitionsCount   int                 `json:"partitions_count,omitempty"`
+	ReplicationFactor int                 `json:"replication_factor,omitempty"`
+	Configs           []TopicConfigEntity `json:"configs,omitempty"`
 }
 
-type CreateTopicResponseEntity struct {
+type CreateTopicResponsePayload struct {
 	Kind     string `json:"kind"`
 	Metadata struct {
 		Self         string `json:"self"`
@@ -88,8 +85,8 @@ type CreateTopicResponseEntity struct {
 	AuthorizedOperations []interface{} `json:"authorized_operations"`
 }
 
-func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[CreateTopicsRequestPayload, ErrorResponseEntity]) (CreateTopicResponseEntity, error) {
-	var payload CreateTopicResponseEntity
+func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[CreateTopicsRequestPayload, ErrorResponseEntity]) (CreateTopicResponsePayload, error) {
+	var payload CreateTopicResponsePayload
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return payload, err
@@ -115,7 +112,7 @@ func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request 
 		return payload, errorResponseEntity
 	}
 
-	payload, err = confluent_util.DeserializeResponse[CreateTopicResponseEntity](r.Body)
+	payload, err = confluent_util.DeserializeResponse[CreateTopicResponsePayload](r.Body)
 	if err != nil {
 		return payload, err
 	}
@@ -124,12 +121,6 @@ func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request 
 }
 
 // DELETE request
-type DeleteTopicsRequest struct {
-	Endpoint  string
-	ClusterID string
-	TopicName string
-}
-
 func (c *TopicsClient) DeleteKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) error {
 	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
 	if err != nil {
@@ -151,13 +142,7 @@ func (c *TopicsClient) DeleteKafkaTopic(session confluent_util.Session, request 
 }
 
 // Get request
-type GetTopicRequest struct {
-	Endpoint  string
-	ClusterID string
-	TopicName string
-}
-
-type GetTopicResponseEntity struct { // Note: same as CreateTopicResponseEntity
+type GetTopicResponseEntity struct { // Note: same as CreateTopicResponsePayload
 	Kind     string `json:"kind"`
 	Metadata struct {
 		Self         string `json:"self"`
@@ -179,7 +164,7 @@ type GetTopicResponseEntity struct { // Note: same as CreateTopicResponseEntity
 	} `json:"partition_reassignments"`
 }
 
-func (c *TopicsClient) GetTopicRequest(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicResponseEntity, error) {
+func (c *TopicsClient) GetKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicResponseEntity, error) {
 	var payload GetTopicResponseEntity
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
 	if err != nil {
@@ -206,11 +191,6 @@ func (c *TopicsClient) GetTopicRequest(session confluent_util.Session, request T
 	return payload, nil
 }
 
-type ListTopicRequest struct {
-	Endpoint  string
-	ClusterID string
-}
-
 type ListTopicResponseEntity struct {
 	Kind     string `json:"kind"`
 	Metadata struct {
@@ -220,7 +200,7 @@ type ListTopicResponseEntity struct {
 	Data []GetTopicResponseEntity `json:"data"`
 }
 
-func (c *TopicsClient) ListTopicRequest(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (ListTopicResponseEntity, error) {
+func (c *TopicsClient) ListKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (ListTopicResponseEntity, error) {
 	var payload ListTopicResponseEntity
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics"), nil)
 	if err != nil {
@@ -248,24 +228,24 @@ func (c *TopicsClient) ListTopicRequest(session confluent_util.Session, request 
 	return payload, nil
 }
 
-type UpdateTopicRequestEntity struct {
+type TopicConfigEntity struct {
 	Name      string `json:"name"`
 	Value     string `json:"value,omitempty"`
 	Operation string `json:"operation,omitempty"`
 }
 
-type UpdateTopicRequestPayload struct {
-	Data []UpdateTopicRequestEntity `json:"data"`
+type UpdateTopicConfigRequestPayload struct {
+	Data []TopicConfigEntity `json:"data"`
 }
 
 type UpdateTopicsRequest struct {
 	Endpoint  string
 	ClusterID string
 	TopicName string
-	Payload   UpdateTopicRequestPayload
+	Payload   UpdateTopicConfigRequestPayload
 }
 
-func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[UpdateTopicRequestPayload, ErrorResponseEntity]) error {
+func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[UpdateTopicConfigRequestPayload, ErrorResponseEntity]) error {
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return err
