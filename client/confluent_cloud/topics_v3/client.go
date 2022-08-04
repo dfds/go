@@ -254,6 +254,7 @@ func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request 
 	if err != nil {
 		return err
 	}
+
 	_, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
@@ -267,4 +268,61 @@ func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request 
 		return errorResponseEntity
 	}
 	return nil
+}
+
+type GetTopicConfigsResponseEntity struct {
+	Kind     string `json:"kind"`
+	Metadata struct {
+		Self string      `json:"self"`
+		Next interface{} `json:"next"`
+	} `json:"metadata"`
+	Data []GetTopicConfigResponseEntity `json:"data"`
+}
+
+type GetTopicConfigResponseEntity struct {
+	Kind     string `json:"kind"`
+	Metadata struct {
+		Self         string `json:"self"`
+		ResourceName string `json:"resource_name"`
+	} `json:"metadata"`
+	ClusterID   string `json:"cluster_id"`
+	TopicName   string `json:"topic_name"`
+	Name        string `json:"name"`
+	Value       string `json:"value"`
+	IsDefault   bool   `json:"is_default"`
+	IsReadOnly  bool   `json:"is_read_only"`
+	IsSensitive bool   `json:"is_sensitive"`
+	Source      string `json:"source"`
+	Synonyms    []struct {
+		Name   string `json:"name"`
+		Value  string `json:"value"`
+		Source string `json:"source"`
+	} `json:"synonyms"`
+}
+
+func (c *TopicsClient) GetKafkaTopicConfigs(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicConfigsResponseEntity, error) {
+	var payload GetTopicConfigsResponseEntity
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName, "configs"), nil)
+	if err != nil {
+		return payload, err
+	}
+	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
+		HttpClient:       c.http,
+		Req:              req,
+		ParameterSession: session,
+		DefaultSession:   c.defaultSession,
+	}, &request)
+	if err != nil {
+		return payload, err
+	}
+
+	if errorResponseEntity != nil {
+		return payload, errorResponseEntity
+	}
+	payload, err = confluent_util.DeserializeResponse[GetTopicConfigsResponseEntity](r.Body)
+	if err != nil {
+		return payload, err
+	}
+
+	return payload, nil
 }
