@@ -3,25 +3,32 @@ package topics
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	confluent_util "go.dfds.cloud/client/confluent_cloud/util"
 )
 
-const (
-	errInvalidRequestFormat = "request does not contain valid data"
-)
-
 type TopicsClient struct {
-	defaultSession confluent_util.Session
-	http           *http.Client
+	http               *http.Client
+	defaultClusterInfo ClusterInfo
 }
 
-func NewClient(defaultSession confluent_util.Session, defaultHttp *http.Client) *TopicsClient {
+type ClusterInfo struct {
+	Cluster  *string
+	Endpoint *string
+	Session  confluent_util.Session
+}
+
+func NewClient(defaultSession confluent_util.Session, defaultHttp *http.Client, defaultEndpoint *string, defaultCluster *string) *TopicsClient {
 	return &TopicsClient{
-		defaultSession: defaultSession,
-		http:           defaultHttp,
+		http: defaultHttp,
+		defaultClusterInfo: ClusterInfo{
+			Endpoint: defaultEndpoint,
+			Cluster:  defaultCluster,
+			Session:  defaultSession,
+		},
 	}
 }
 
@@ -37,13 +44,11 @@ func (e *ErrorResponseEntity) Error() string {
 // T = Payload
 // E = any or interface{}
 type TopicRequestEntity[T any, E any] struct { // Accepts both Payload and Error
-	Endpoint  string
-	ClusterID string
 	TopicName *string `json:"topic_name,omitempty"`
 	Payload   *T
 }
 
-func (c *TopicRequestEntity[T, E]) Handle(e error, r *http.Response) (*E, error) { // Will be called automatically on CreateTopicsRequest - implements the interface
+func (c *TopicRequestEntity[T, E]) Handle(e error, r *http.Response) (*E, error) { // Will be called automatically on CreateTopicsRequest - implements the interface (same signature)
 	var errorMessage *E
 	if r.StatusCode != 204 && r.StatusCode >= 400 {
 		errorMessage, err := confluent_util.DeserializeResponse[E](r.Body)
@@ -85,21 +90,80 @@ type CreateTopicResponsePayload struct {
 	AuthorizedOperations []interface{} `json:"authorized_operations"`
 }
 
-func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[CreateTopicsRequestPayload, ErrorResponseEntity]) (CreateTopicResponsePayload, error) {
+func (c *TopicsClient) GetSessionInfo(session *ClusterInfo) (*ClusterInfo, error) {
+	var currentSession *ClusterInfo
+	if session != nil {
+		currentSession = session
+	} else {
+		currentSession = &c.defaultClusterInfo
+	}
+	if currentSession == nil {
+		return currentSession, errors.New("Session info missing")
+	}
+	return currentSession, nil
+}
+
+func (c *TopicsClient) GetKafkaTopic(session *ClusterInfo, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicResponseEntity, error) {
+	var payload GetTopicResponseEntity
+
+	currentSession, err := c.GetSessionInfo(session)
+	if err != nil {
+		return payload, err
+	}
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics", *request.TopicName), nil)
+	if err != nil {
+		return payload, err
+	}
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
+	}
+	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
+		HttpClient:       c.http,
+		Req:              req,
+		ParameterSession: parameterSession,
+		DefaultSession:   c.defaultClusterInfo.Session,
+	}, &request)
+	if err != nil {
+		return payload, err
+	}
+
+	if errorResponseEntity != nil {
+		return payload, errorResponseEntity
+	}
+	payload, err = confluent_util.DeserializeResponse[GetTopicResponseEntity](r.Body)
+	if err != nil {
+		return payload, err
+	}
+
+	return payload, nil
+}
+
+func (c *TopicsClient) CreateKafkaTopic(session *ClusterInfo, request TopicRequestEntity[CreateTopicsRequestPayload, ErrorResponseEntity]) (CreateTopicResponsePayload, error) {
 	var payload CreateTopicResponsePayload
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return payload, err
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics"), bytes.NewBuffer(requestPayload))
+
+	currentSession, err := c.GetSessionInfo(session)
 	if err != nil {
 		return payload, err
+	}
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics"), bytes.NewBuffer(requestPayload))
+	if err != nil {
+		return payload, err
+	}
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
 	}
 	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
+		ParameterSession: session.Session,
+		DefaultSession:   parameterSession,
 	},
 		&request,
 	)
@@ -121,16 +185,24 @@ func (c *TopicsClient) CreateKafkaTopic(session confluent_util.Session, request 
 }
 
 // DELETE request
-func (c *TopicsClient) DeleteKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) error {
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
+func (c *TopicsClient) DeleteKafkaTopic(session *ClusterInfo, request TopicRequestEntity[any, ErrorResponseEntity]) error {
+	currentSession, err := c.GetSessionInfo(session)
 	if err != nil {
 		return err
+	}
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics", *request.TopicName), nil)
+	if err != nil {
+		return err
+	}
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
 	}
 	_, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
+		ParameterSession: session.Session,
+		DefaultSession:   parameterSession,
 	}, &request)
 	if err != nil {
 		return err
@@ -164,33 +236,6 @@ type GetTopicResponseEntity struct { // Note: same as CreateTopicResponsePayload
 	} `json:"partition_reassignments"`
 }
 
-func (c *TopicsClient) GetKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicResponseEntity, error) {
-	var payload GetTopicResponseEntity
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName), nil)
-	if err != nil {
-		return payload, err
-	}
-	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
-		HttpClient:       c.http,
-		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
-	}, &request)
-	if err != nil {
-		return payload, err
-	}
-
-	if errorResponseEntity != nil {
-		return payload, errorResponseEntity
-	}
-	payload, err = confluent_util.DeserializeResponse[GetTopicResponseEntity](r.Body)
-	if err != nil {
-		return payload, err
-	}
-
-	return payload, nil
-}
-
 type ListTopicResponseEntity struct {
 	Kind     string `json:"kind"`
 	Metadata struct {
@@ -200,17 +245,25 @@ type ListTopicResponseEntity struct {
 	Data []GetTopicResponseEntity `json:"data"`
 }
 
-func (c *TopicsClient) ListKafkaTopic(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (ListTopicResponseEntity, error) {
+func (c *TopicsClient) ListKafkaTopic(session *ClusterInfo, request TopicRequestEntity[any, ErrorResponseEntity]) (ListTopicResponseEntity, error) {
 	var payload ListTopicResponseEntity
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics"), nil)
+	currentSession, err := c.GetSessionInfo(session)
 	if err != nil {
 		return payload, err
+	}
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics"), nil)
+	if err != nil {
+		return payload, err
+	}
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
 	}
 	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
+		ParameterSession: parameterSession,
+		DefaultSession:   c.defaultClusterInfo.Session,
 	}, &request)
 	if err != nil {
 		return payload, err
@@ -239,27 +292,32 @@ type UpdateTopicConfigRequestPayload struct {
 }
 
 type UpdateTopicsRequest struct {
-	Endpoint  string
-	ClusterID string
 	TopicName string
 	Payload   UpdateTopicConfigRequestPayload
 }
 
-func (c *TopicsClient) UpdateKafkaTopic(session confluent_util.Session, request TopicRequestEntity[UpdateTopicConfigRequestPayload, ErrorResponseEntity]) error {
+func (c *TopicsClient) UpdateKafkaTopic(session *ClusterInfo, request TopicRequestEntity[UpdateTopicConfigRequestPayload, ErrorResponseEntity]) error {
+	currentSession, err := c.GetSessionInfo(session)
+	if err != nil {
+		return err
+	}
 	requestPayload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName, "configs:alter"), bytes.NewBuffer(requestPayload))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics", *request.TopicName, "configs:alter"), bytes.NewBuffer(requestPayload))
 	if err != nil {
 		return err
 	}
-
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
+	}
 	_, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
+		ParameterSession: parameterSession,
+		DefaultSession:   c.defaultClusterInfo.Session,
 	}, &request)
 	if err != nil {
 		return err
@@ -300,17 +358,25 @@ type GetTopicConfigResponseEntity struct {
 	} `json:"synonyms"`
 }
 
-func (c *TopicsClient) GetKafkaTopicConfigs(session confluent_util.Session, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicConfigsResponseEntity, error) {
+func (c *TopicsClient) GetKafkaTopicConfigs(session *ClusterInfo, request TopicRequestEntity[any, ErrorResponseEntity]) (GetTopicConfigsResponseEntity, error) {
 	var payload GetTopicConfigsResponseEntity
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s/%s", request.Endpoint, "kafka/v3/clusters", request.ClusterID, "topics", *request.TopicName, "configs"), nil)
+	currentSession, err := c.GetSessionInfo(session)
 	if err != nil {
 		return payload, err
+	}
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s/%s/%s/%s/%s", *currentSession.Endpoint, "kafka/v3/clusters", *currentSession.Cluster, "topics", *request.TopicName, "configs"), nil)
+	if err != nil {
+		return payload, err
+	}
+	var parameterSession confluent_util.Session
+	if session != nil {
+		parameterSession = session.Session
 	}
 	r, errorResponseEntity, err := confluent_util.DoHttpRequest[ErrorResponseEntity](confluent_util.DoHttpRequestParameters{
 		HttpClient:       c.http,
 		Req:              req,
-		ParameterSession: session,
-		DefaultSession:   c.defaultSession,
+		ParameterSession: parameterSession,
+		DefaultSession:   c.defaultClusterInfo.Session,
 	}, &request)
 	if err != nil {
 		return payload, err

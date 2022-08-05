@@ -45,7 +45,6 @@ func DoHttpRequest[T any](req DoHttpRequestParameters, errorHandler ErrorHandler
 	if err != nil {
 		return nil, errorResponseEntity, err
 	}
-
 	resp, err := req.HttpClient.Do(req.Req)
 	if err != nil {
 		return resp, errorResponseEntity, err

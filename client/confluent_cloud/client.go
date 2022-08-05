@@ -32,6 +32,36 @@ func (c *Client) ServiceAccountsV2() *service_accounts_v2.ServiceAccountsClient 
 	return service_accounts_v2.NewClient(c.defaultSession, c.http)
 }
 
-func (c *Client) TopicsV3() *topics.TopicsClient {
-	return topics.NewClient(c.defaultSession, c.http)
+// func (c *Client) TopicsV3() *topics.TopicsClient {
+// 	return topics.NewClient(c.defaultSession, c.http, c.defaultEndpoint)
+// }
+
+// func (c *Client) TopicsV3() *topics.TopicsClient {
+// 	return topics.NewClient(c.defaultSession, c.http)
+// }
+
+type KafkaClient struct {
+	defaultSession  confluent_util.Session
+	http            *http.Client
+	defaultEndpoint *string
+	defaultCluster  *string
+}
+
+func NewKafkaClient() *KafkaClient {
+	return &KafkaClient{
+		defaultSession:  nil,
+		http:            http.DefaultClient,
+		defaultEndpoint: nil,
+		defaultCluster:  nil,
+	}
+}
+
+func (c *KafkaClient) SetKafkaClientDefaultClusterInfo(endpoint string, id string, session confluent_util.Session) {
+	c.defaultEndpoint = &endpoint
+	c.defaultCluster = &id
+	c.defaultSession = session
+}
+
+func (c *KafkaClient) TopicsV3() *topics.TopicsClient {
+	return topics.NewClient(c.defaultSession, c.http, c.defaultEndpoint, c.defaultCluster)
 }
