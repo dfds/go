@@ -11,6 +11,10 @@
     {
       "prefix": "emcla",
       "url": "https://github.com/dfds/emcla-go"
+    },
+    {
+      "prefix": "aad-aws-sync",
+      "url": "https://github.com/dfds/aad-aws-sync"
     }
   ]
 }
