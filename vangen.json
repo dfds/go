@@ -5,7 +5,8 @@
       "subs": [
         "utils",
         "client/confluent_cloud",
-        "orchestrator"
+        "orchestrator",
+        "bootstrap"
       ],
       "url": "https://github.com/dfds/go"
     },
