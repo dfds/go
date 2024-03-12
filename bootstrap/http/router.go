@@ -7,7 +7,13 @@ import (
 	"net/http"
 )
 
-func NewHttpServer() (*gin.Engine, *http.Server) {
+func NewHttpServer(enableDebug bool) (*gin.Engine, *http.Server) {
+	if enableDebug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	router := gin.New()
 	router.Use(gin.Recovery(), gin.ErrorLogger())
 

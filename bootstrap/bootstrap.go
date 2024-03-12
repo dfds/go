@@ -20,13 +20,17 @@ type Manager struct {
 
 type ManagerBuilder struct {
 	context        context.Context
+	enableDebug    bool
 	enableLogging  bool
 	loggingOptions struct {
 		enableDebug bool
 		logLevel    string
 	}
-	enableMetrics       bool
-	enableHttpRouter    bool
+	enableMetrics     bool
+	enableHttpRouter  bool
+	httpRouterOptions struct {
+		enableDebug bool
+	}
 	enableOrchestrator  bool
 	orchestratorOptions struct {
 		namespace string
@@ -49,8 +53,9 @@ func (m *ManagerBuilder) EnableMetrics() *ManagerBuilder {
 	return m
 }
 
-func (m *ManagerBuilder) EnableHttpRouter() *ManagerBuilder {
+func (m *ManagerBuilder) EnableHttpRouter(enableDebug bool) *ManagerBuilder {
 	m.enableHttpRouter = true
+	m.httpRouterOptions.enableDebug = enableDebug
 	return m
 }
 
@@ -73,7 +78,7 @@ func (m *ManagerBuilder) Build() *Manager {
 	}
 
 	if m.enableHttpRouter {
-		router, server := bHttp.NewHttpServer()
+		router, server := bHttp.NewHttpServer(m.httpRouterOptions.enableDebug)
 		manager.HttpRouter = router
 		manager.HttpServer = server
 	}
