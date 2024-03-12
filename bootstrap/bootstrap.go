@@ -8,7 +8,10 @@ import (
 	"go.dfds.cloud/orchestrator"
 	"go.uber.org/zap"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 )
 
 type Manager struct {
@@ -16,6 +19,12 @@ type Manager struct {
 	HttpRouter   *gin.Engine
 	HttpServer   *http.Server
 	Orchestrator *orchestrator.Orchestrator
+	Context      context.Context
+	CancelFunc   context.CancelFunc
+}
+
+func (m *Manager) Stop() {
+	m.CancelFunc()
 }
 
 type ManagerBuilder struct {
@@ -69,7 +78,9 @@ func (m *ManagerBuilder) Build() *Manager {
 	manager := &Manager{}
 
 	if m.context == nil {
-		m.context = context.Background()
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		manager.Context = ctx
+		manager.CancelFunc = stop
 	}
 
 	if m.enableLogging {
