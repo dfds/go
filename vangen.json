@@ -6,7 +6,8 @@
         "utils",
         "client/confluent_cloud",
         "orchestrator",
-        "bootstrap"
+        "bootstrap",
+        "messaging"
       ],
       "url": "https://github.com/dfds/go"
     },
