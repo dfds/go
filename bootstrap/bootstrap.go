@@ -110,7 +110,3 @@ func (m *ManagerBuilder) Build() *Manager {
 func Builder() *ManagerBuilder {
 	return &ManagerBuilder{}
 }
-
-func TestingWeeee() {
-
-}
