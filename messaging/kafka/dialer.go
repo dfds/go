@@ -35,6 +35,8 @@ func NewDialer(envPrefix string, authConfig AuthConfig) (*kafka.Dialer, error) {
 	for k, v := range authConfig.MechanismOptions {
 		fmt.Printf("Key: %s, Value: %s\n", k, v)
 	}
+
+	fmt.Println(authConfig.Mechanism)
 	switch strings.ToLower(authConfig.Mechanism) {
 	case "plain":
 		var plainConf plain.Mechanism
@@ -46,6 +48,8 @@ func NewDialer(envPrefix string, authConfig AuthConfig) (*kafka.Dialer, error) {
 	default:
 		saslMechanism = nil
 	}
+
+	fmt.Println(saslMechanism)
 
 	// Configure connection dialer
 	return &kafka.Dialer{

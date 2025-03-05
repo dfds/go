@@ -101,7 +101,7 @@ func (c *Consumer) StartConsumer() {
 			continue
 		}
 
-		if event == nil || event.Type == "" {
+		if event == nil || (event.Type == "" && event.EventName == "") {
 			msgLog.Info("Unable to recognise event envelope, skipping message")
 			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
 			continue
@@ -113,7 +113,14 @@ func (c *Consumer) StartConsumer() {
 			zap.String("key", string(msg.Key)),
 			zap.String("eventName", event.Type))
 
-		handler = c.registry.GetHandler(event.Type)
+		handlerType := ""
+		if event.Type != "" {
+			handlerType = event.Type
+		} else {
+			handlerType = event.EventName
+		}
+		
+		handler = c.registry.GetHandler(handlerType)
 		if handler == nil {
 			eventLog.Info("No handler registered for event, skipping.")
 			partitionOffsetTracker[msg.Partition] = msg.Offset + 1

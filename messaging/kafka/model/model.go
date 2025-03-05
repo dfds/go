@@ -1,8 +1,12 @@
 package model
 
 type Envelope struct {
-	Type      string `json:"type"`
-	MessageId string `json:"messageId"`
+	Type           string `json:"type"`
+	MessageId      string `json:"messageId"`
+	EventName      string `json:"eventName"`
+	Version        string `json:"version"`
+	XCorrelationId string `json:"x-correlationId"`
+	XSender        string `json:"x-sender"`
 }
 
 type EnvelopeWithPayload[T any] struct {
