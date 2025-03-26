@@ -9,7 +9,9 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"log"
+	"strings"
 	"sync"
+	"time"
 )
 
 func newConsumer(topic string, groupId string, authConfig AuthConfig, dialer *kafka.Dialer) *kafka.Reader {
@@ -55,6 +57,25 @@ func (c *Consumer) Register(eventName string, f registry.HandlerFunc) {
 	c.registry.Register(eventName, f)
 }
 
+func BgOffsetUpdate(context context.Context, consumer *Consumer, partitionOffsetTracker map[int]int64) {
+	lastPartitionOffsetSave := time.Now()
+
+	for {
+		if err := context.Err(); err != nil {
+			break
+		}
+		if time.Now().Unix() >= lastPartitionOffsetSave.Add(time.Second*60).Unix() {
+			offsets := make(map[string]map[int]int64)
+			offsets[consumer.topic] = partitionOffsetTracker
+			consumer.UpdateOffsets(offsets)
+
+			lastPartitionOffsetSave = time.Now()
+		}
+
+		time.Sleep(time.Second * 1)
+	}
+}
+
 func (c *Consumer) StartConsumer() {
 	var cleanupOnce sync.Once
 	partitionOffsetTracker := make(map[int]int64)
@@ -63,12 +84,20 @@ func (c *Consumer) StartConsumer() {
 		if err := c.Reader.Close(); err != nil {
 			c.logger.Fatal("Failed to close Kafka consumer", zap.Error(err))
 		}
+
+		offsets := make(map[string]map[int]int64)
+		offsets[c.topic] = partitionOffsetTracker
+		c.UpdateOffsets(offsets)
+
 		c.logger.Debug("Kafka consumer has been closed")
+
 	}
 	defer cleanupOnce.Do(cleanup)
 
 	c.wg.Add(1)
 	defer c.wg.Done()
+
+	go BgOffsetUpdate(c.ctx, c, partitionOffsetTracker)
 
 	for {
 		c.logger.Debug("Awaiting new message from topic")
@@ -119,7 +148,7 @@ func (c *Consumer) StartConsumer() {
 		} else {
 			handlerType = event.EventName
 		}
-		
+
 		handler = c.registry.GetHandler(handlerType)
 		if handler == nil {
 			eventLog.Info("No handler registered for event, skipping.")
@@ -134,7 +163,12 @@ func (c *Consumer) StartConsumer() {
 		if err != nil {
 			eventLog.Error("Handler for event failed", zap.Error(err))
 			cleanupOnce.Do(cleanup)
-			log.Fatal(err)
+			if strings.Contains(err.Error(), context.Canceled.Error()) {
+				eventLog.Error("handler context canceled")
+				break
+			} else {
+				log.Fatal(err)
+			}
 		}
 
 		partitionOffsetTracker[msg.Partition] = msg.Offset + 1
@@ -143,6 +177,12 @@ func (c *Consumer) StartConsumer() {
 	offsets := make(map[string]map[int]int64)
 	offsets[c.topic] = partitionOffsetTracker
 
+	c.UpdateOffsets(offsets)
+
+	cleanupOnce.Do(cleanup)
+}
+
+func (c *Consumer) UpdateOffsets(offsets map[string]map[int]int64) {
 	c.logger.Info("Updating offsets")
 	cg, err := kafka.NewConsumerGroup(kafka.ConsumerGroupConfig{
 		ID:      c.groupId,
@@ -164,8 +204,6 @@ func (c *Consumer) StartConsumer() {
 	}
 
 	cg.Close()
-
-	cleanupOnce.Do(cleanup)
 }
 
 func GetEventFromMsg(data []byte) (*model.Envelope, error) {
