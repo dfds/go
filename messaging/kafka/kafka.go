@@ -183,7 +183,7 @@ func (c *Consumer) StartConsumer() {
 }
 
 func (c *Consumer) UpdateOffsets(offsets map[string]map[int]int64) {
-	c.logger.Info("Updating offsets")
+	c.logger.Debug("Updating offsets")
 	cg, err := kafka.NewConsumerGroup(kafka.ConsumerGroupConfig{
 		ID:      c.groupId,
 		Brokers: c.authConfig.Brokers,
