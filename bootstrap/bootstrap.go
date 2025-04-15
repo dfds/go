@@ -81,6 +81,7 @@ func (m *ManagerBuilder) Build() *Manager {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		manager.Context = ctx
 		manager.CancelFunc = stop
+		m.context = ctx
 	}
 
 	if m.enableLogging {
