@@ -76,7 +76,7 @@ func BgOffsetUpdate(context context.Context, consumer *Consumer, partitionOffset
 	}
 }
 
-func (c *Consumer) StartConsumer() {
+func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 	var cleanupOnce sync.Once
 	partitionOffsetTracker := make(map[int]int64)
 	cleanup := func() {
@@ -156,10 +156,15 @@ func (c *Consumer) StartConsumer() {
 			continue
 		}
 
-		err = handler(c.ctx, model.HandlerContext{
-			Event: event,
-			Msg:   msg.Value,
-		})
+		var handlerContext model.HandlerContext
+		handlerContext.Event = event
+		handlerContext.Msg = msg.Value
+
+		if initialHandlerContext != nil {
+			handlerContext.Writer = initialHandlerContext.Writer
+		}
+
+		err = handler(c.ctx, handlerContext)
 		if err != nil {
 			eventLog.Error("Handler for event failed", zap.Error(err))
 			cleanupOnce.Do(cleanup)
@@ -265,8 +270,12 @@ func (p *Publisher) newPublisher(topic string) *kafka.Writer {
 	return writer
 }
 
+func (p *Publisher) Writer(topic string) *kafka.Writer {
+	return p.newPublisher(topic)
+}
+
 func (p *Publisher) Publish(topic string, msgs ...kafka.Message) error {
-	publisher := p.newPublisher(topic)
+	publisher := p.Writer(topic)
 	err := publisher.WriteMessages(p.ctx, msgs...)
 	return err
 }
