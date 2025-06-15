@@ -76,7 +76,7 @@ func BgOffsetUpdate(context context.Context, consumer *Consumer, partitionOffset
 	}
 }
 
-func (c *Consumer) StartConsumer() {
+func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 	var cleanupOnce sync.Once
 	partitionOffsetTracker := make(map[int]int64)
 	cleanup := func() {
@@ -156,10 +156,15 @@ func (c *Consumer) StartConsumer() {
 			continue
 		}
 
-		err = handler(c.ctx, model.HandlerContext{
-			Event: event,
-			Msg:   msg.Value,
-		})
+		var handlerContext model.HandlerContext
+		handlerContext.Event = event
+		handlerContext.Msg = msg.Value
+
+		if initialHandlerContext != nil {
+			handlerContext.Writer = initialHandlerContext.Writer
+		}
+
+		err = handler(c.ctx, handlerContext)
 		if err != nil {
 			eventLog.Error("Handler for event failed", zap.Error(err))
 			cleanupOnce.Do(cleanup)
@@ -228,4 +233,49 @@ func commitMsg(ctx context.Context, msg kafka.Message, consumer *kafka.Reader, l
 	msgLog.Debug("Commit for consumer group updated")
 
 	return nil
+}
+
+func NewPublisher(authConfig AuthConfig, dialer *kafka.Dialer, logger *zap.Logger, ctx context.Context) *Publisher {
+	return &Publisher{
+		authConfig: authConfig,
+		dialer:     dialer,
+		ctx:        ctx,
+		logger:     logger,
+	}
+}
+
+type Publisher struct {
+	authConfig AuthConfig
+	dialer     *kafka.Dialer
+	ctx        context.Context
+	logger     *zap.Logger
+}
+
+func (p *Publisher) newPublisher(topic string) *kafka.Writer {
+	transport := &kafka.Transport{
+		Dial:        p.dialer.DialFunc,
+		SASL:        p.dialer.SASLMechanism,
+		TLS:         p.dialer.TLS,
+		ClientID:    p.dialer.ClientID,
+		IdleTimeout: 9 * time.Minute,
+		MetadataTTL: 15 * time.Second,
+	}
+
+	writer := &kafka.Writer{
+		Transport: transport,
+		Topic:     topic,
+		Addr:      kafka.TCP(p.authConfig.Brokers...),
+	}
+
+	return writer
+}
+
+func (p *Publisher) Writer(topic string) *kafka.Writer {
+	return p.newPublisher(topic)
+}
+
+func (p *Publisher) Publish(topic string, msgs ...kafka.Message) error {
+	publisher := p.Writer(topic)
+	err := publisher.WriteMessages(p.ctx, msgs...)
+	return err
 }

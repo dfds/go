@@ -51,24 +51,7 @@ func (m *Messaging) NewConsumer(topicName string, groupId string) *kafka.Consume
 	return consumer
 }
 
-//func StartEventHandling(ctx context.Context, config *Config) error {
-//	var authConfig kafka.AuthConfig
-//	err := envconfig.Process(config.EnvVarPrefix, &authConfig)
-//	if err != nil {
-//		return err
-//	}
-//
-//	dialer, err := kafka.NewDialer(authConfig)
-//	if err != nil {
-//		return err
-//	}
-//
-//	auditConsumer := kafka.NewConsumer("cloudengineering.selfservice.audit", "cloudengineering.ssu-k8s", authConfig, dialer, config.Logger, config.Wg, ctx)
-//	auditConsumer.Register("user-action", func(ctx context.Context, event model.HandlerContext) error {
-//		fmt.Println("pog")
-//		return nil
-//	})
-//	go auditConsumer.StartConsumer()
-//
-//	return nil
-//}
+func (m *Messaging) NewPublisher() *kafka.Publisher {
+	publisher := kafka.NewPublisher(m.Config.kafkaAuthConfig, m.dialer, m.Config.Logger, m.Context)
+	return publisher
+}
