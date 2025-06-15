@@ -51,6 +51,11 @@ func (m *Messaging) NewConsumer(topicName string, groupId string) *kafka.Consume
 	return consumer
 }
 
+func (m *Messaging) NewPublisher() *kafka.Publisher {
+	publisher := kafka.NewPublisher(m.Config.kafkaAuthConfig, m.dialer, m.Config.Logger, m.Context)
+	return publisher
+}
+
 //func StartEventHandling(ctx context.Context, config *Config) error {
 //	var authConfig kafka.AuthConfig
 //	err := envconfig.Process(config.EnvVarPrefix, &authConfig)

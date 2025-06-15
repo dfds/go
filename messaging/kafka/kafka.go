@@ -229,3 +229,44 @@ func commitMsg(ctx context.Context, msg kafka.Message, consumer *kafka.Reader, l
 
 	return nil
 }
+
+func NewPublisher(authConfig AuthConfig, dialer *kafka.Dialer, logger *zap.Logger, ctx context.Context) *Publisher {
+	return &Publisher{
+		authConfig: authConfig,
+		dialer:     dialer,
+		ctx:        ctx,
+		logger:     logger,
+	}
+}
+
+type Publisher struct {
+	authConfig AuthConfig
+	dialer     *kafka.Dialer
+	ctx        context.Context
+	logger     *zap.Logger
+}
+
+func (p *Publisher) newPublisher(topic string) *kafka.Writer {
+	transport := &kafka.Transport{
+		Dial:        p.dialer.DialFunc,
+		SASL:        p.dialer.SASLMechanism,
+		TLS:         p.dialer.TLS,
+		ClientID:    p.dialer.ClientID,
+		IdleTimeout: 9 * time.Minute,
+		MetadataTTL: 15 * time.Second,
+	}
+
+	writer := &kafka.Writer{
+		Transport: transport,
+		Topic:     topic,
+		Addr:      kafka.TCP(p.authConfig.Brokers...),
+	}
+
+	return writer
+}
+
+func (p *Publisher) Publish(topic string, msgs ...kafka.Message) error {
+	publisher := p.newPublisher(topic)
+	err := publisher.WriteMessages(p.ctx, msgs...)
+	return err
+}
