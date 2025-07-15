@@ -3,15 +3,16 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"github.com/segmentio/kafka-go"
-	"go.dfds.cloud/messaging/kafka/model"
-	"go.dfds.cloud/messaging/kafka/registry"
-	"go.uber.org/zap"
 	"io"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/segmentio/kafka-go"
+	"go.dfds.cloud/messaging/kafka/model"
+	"go.dfds.cloud/messaging/kafka/registry"
+	"go.uber.org/zap"
 )
 
 func newConsumer(topic string, groupId string, authConfig AuthConfig, dialer *kafka.Dialer) *kafka.Reader {
@@ -177,12 +178,12 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 		}
 
 		partitionOffsetTracker[msg.Partition] = msg.Offset + 1
+
+		offsets := make(map[string]map[int]int64)
+		offsets[c.topic] = partitionOffsetTracker
+
+		c.UpdateOffsets(offsets)
 	}
-
-	offsets := make(map[string]map[int]int64)
-	offsets[c.topic] = partitionOffsetTracker
-
-	c.UpdateOffsets(offsets)
 
 	cleanupOnce.Do(cleanup)
 }
