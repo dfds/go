@@ -58,25 +58,6 @@ func (c *Consumer) Register(eventName string, f registry.HandlerFunc) {
 	c.registry.Register(eventName, f)
 }
 
-func BgOffsetUpdate(context context.Context, consumer *Consumer, partitionOffsetTracker map[int]int64) {
-	lastPartitionOffsetSave := time.Now()
-
-	for {
-		if err := context.Err(); err != nil {
-			break
-		}
-		if time.Now().Unix() >= lastPartitionOffsetSave.Add(time.Second*60).Unix() {
-			offsets := make(map[string]map[int]int64)
-			offsets[consumer.topic] = partitionOffsetTracker
-			consumer.UpdateOffsets(offsets)
-
-			lastPartitionOffsetSave = time.Now()
-		}
-
-		time.Sleep(time.Second * 1)
-	}
-}
-
 func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 	var cleanupOnce sync.Once
 	partitionOffsetTracker := make(map[int]int64)
@@ -97,8 +78,6 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 
 	c.wg.Add(1)
 	defer c.wg.Done()
-
-	go BgOffsetUpdate(c.ctx, c, partitionOffsetTracker)
 
 	for {
 		c.logger.Debug("Awaiting new message from topic")
