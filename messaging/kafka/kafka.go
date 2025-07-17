@@ -107,12 +107,18 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 		if err != nil {
 			msgLog.Info("Unable to deserialise message payload. Quite likely the message is not valid JSON. Skipping message")
 			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
+			offsets := make(map[string]map[int]int64)
+			offsets[c.topic] = partitionOffsetTracker
+			c.UpdateOffsets(offsets)
 			continue
 		}
 
 		if event == nil || (event.Type == "" && event.EventName == "") {
 			msgLog.Info("Unable to recognise event envelope, skipping message")
 			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
+			offsets := make(map[string]map[int]int64)
+			offsets[c.topic] = partitionOffsetTracker
+			c.UpdateOffsets(offsets)
 			continue
 		}
 
@@ -133,6 +139,9 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 		if handler == nil {
 			eventLog.Info("No handler registered for event, skipping.")
 			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
+			offsets := make(map[string]map[int]int64)
+			offsets[c.topic] = partitionOffsetTracker
+			c.UpdateOffsets(offsets)
 			continue
 		}
 
