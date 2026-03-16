@@ -60,19 +60,12 @@ func (c *Consumer) Register(eventName string, f registry.HandlerFunc) {
 
 func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 	var cleanupOnce sync.Once
-	partitionOffsetTracker := make(map[int]int64)
 	cleanup := func() {
 		c.logger.Debug("Closing Kafka consumer")
 		if err := c.Reader.Close(); err != nil {
 			c.logger.Fatal("Failed to close Kafka consumer", zap.Error(err))
 		}
-
-		offsets := make(map[string]map[int]int64)
-		offsets[c.topic] = partitionOffsetTracker
-		c.UpdateOffsets(offsets)
-
 		c.logger.Debug("Kafka consumer has been closed")
-
 	}
 	defer cleanupOnce.Do(cleanup)
 
@@ -106,19 +99,13 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 		event, err := GetEventFromMsg(msg.Value)
 		if err != nil {
 			msgLog.Info("Unable to deserialise message payload. Quite likely the message is not valid JSON. Skipping message")
-			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
-			offsets := make(map[string]map[int]int64)
-			offsets[c.topic] = partitionOffsetTracker
-			c.UpdateOffsets(offsets)
+			c.commitMsg(msg)
 			continue
 		}
 
 		if event == nil || (event.Type == "" && event.EventName == "") {
 			msgLog.Info("Unable to recognise event envelope, skipping message")
-			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
-			offsets := make(map[string]map[int]int64)
-			offsets[c.topic] = partitionOffsetTracker
-			c.UpdateOffsets(offsets)
+			c.commitMsg(msg)
 			continue
 		}
 
@@ -138,10 +125,7 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 		handler = c.registry.GetHandler(handlerType)
 		if handler == nil {
 			eventLog.Info("No handler registered for event, skipping.")
-			partitionOffsetTracker[msg.Partition] = msg.Offset + 1
-			offsets := make(map[string]map[int]int64)
-			offsets[c.topic] = partitionOffsetTracker
-			c.UpdateOffsets(offsets)
+			c.commitMsg(msg)
 			continue
 		}
 
@@ -165,39 +149,17 @@ func (c *Consumer) StartConsumer(initialHandlerContext *model.HandlerContext) {
 			}
 		}
 
-		partitionOffsetTracker[msg.Partition] = msg.Offset + 1
-
-		offsets := make(map[string]map[int]int64)
-		offsets[c.topic] = partitionOffsetTracker
-
-		c.UpdateOffsets(offsets)
+		c.commitMsg(msg)
 	}
 
 	cleanupOnce.Do(cleanup)
 }
 
-func (c *Consumer) UpdateOffsets(offsets map[string]map[int]int64) {
+func (c *Consumer) commitMsg(msg kafka.Message) {
 	c.logger.Debug("Updating offsets")
-	cg, err := kafka.NewConsumerGroup(kafka.ConsumerGroupConfig{
-		ID:      c.groupId,
-		Brokers: c.authConfig.Brokers,
-		Dialer:  c.dialer,
-		Topics:  []string{c.topic},
-	})
-	if err != nil {
-		c.logger.Error("Unable to update commit for consumer group", zap.Error(err)) // TODO: Trigger graceful shutdown
+	if err := c.Reader.CommitMessages(c.ctx, msg); err != nil {
+		c.logger.Error("Unable to commit offset for consumer group", zap.Error(err))
 	}
-
-	gen, err := cg.Next(context.Background())
-	if err != nil {
-		c.logger.Error("Unable to update commit for consumer group", zap.Error(err)) // TODO: Trigger graceful shutdown
-	}
-	err = gen.CommitOffsets(offsets)
-	if err != nil {
-		c.logger.Error("Unable to update commit for consumer group", zap.Error(err)) // TODO: Trigger graceful shutdown
-	}
-
-	cg.Close()
 }
 
 func GetEventFromMsg(data []byte) (*model.Envelope, error) {
@@ -208,20 +170,6 @@ func GetEventFromMsg(data []byte) (*model.Envelope, error) {
 	}
 
 	return payload, nil
-}
-
-func commitMsg(ctx context.Context, msg kafka.Message, consumer *kafka.Reader, logger *zap.Logger) error {
-	err := consumer.CommitMessages(ctx, msg)
-	if err != nil {
-		return err
-	}
-
-	msgLog := logger.With(zap.String("topic", msg.Topic),
-		zap.Int("partition", msg.Partition),
-		zap.Int64("offset", msg.Offset))
-	msgLog.Debug("Commit for consumer group updated")
-
-	return nil
 }
 
 func NewPublisher(authConfig AuthConfig, dialer *kafka.Dialer, logger *zap.Logger, ctx context.Context) *Publisher {
@@ -254,6 +202,7 @@ func (p *Publisher) newPublisher(topic string) *kafka.Writer {
 		Transport: transport,
 		Topic:     topic,
 		Addr:      kafka.TCP(p.authConfig.Brokers...),
+		BatchSize: 100,
 	}
 
 	return writer
