@@ -39,6 +39,7 @@ type ManagerBuilder struct {
 	enableHttpRouter  bool
 	httpRouterOptions struct {
 		enableDebug bool
+		addr        string
 	}
 	enableOrchestrator  bool
 	orchestratorOptions struct {
@@ -68,6 +69,16 @@ func (m *ManagerBuilder) EnableHttpRouter(enableDebug bool) *ManagerBuilder {
 	return m
 }
 
+// EnableHttpRouterWithAddr is like EnableHttpRouter but listens on a custom
+// address (e.g. ":8081" or "0.0.0.0:8081"). An empty addr keeps the default
+// :8080.
+func (m *ManagerBuilder) EnableHttpRouterWithAddr(enableDebug bool, addr string) *ManagerBuilder {
+	m.enableHttpRouter = true
+	m.httpRouterOptions.enableDebug = enableDebug
+	m.httpRouterOptions.addr = addr
+	return m
+}
+
 func (m *ManagerBuilder) EnableOrchestrator(namespace string) *ManagerBuilder {
 	m.enableOrchestrator = true
 	m.orchestratorOptions.namespace = namespace
@@ -90,7 +101,7 @@ func (m *ManagerBuilder) Build() *Manager {
 	}
 
 	if m.enableHttpRouter {
-		router, server := bHttp.NewHttpServer(m.httpRouterOptions.enableDebug)
+		router, server := bHttp.NewHttpServer(m.httpRouterOptions.enableDebug, m.httpRouterOptions.addr)
 		manager.HttpRouter = router
 		manager.HttpServer = server
 	}

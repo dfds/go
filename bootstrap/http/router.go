@@ -7,18 +7,29 @@ import (
 	"net/http"
 )
 
-func NewHttpServer(enableDebug bool) (*gin.Engine, *http.Server) {
+// DefaultHttpAddr is the listen address used when NewHttpServer is given an
+// empty addr.
+const DefaultHttpAddr = ":8080"
+
+// NewHttpServer starts the application HTTP router. addr is the listen address
+// (e.g. ":8081" or "0.0.0.0:8081"); an empty addr falls back to DefaultHttpAddr
+// so existing callers keep the historical :8080 behaviour.
+func NewHttpServer(enableDebug bool, addr string) (*gin.Engine, *http.Server) {
 	if enableDebug {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	if addr == "" {
+		addr = DefaultHttpAddr
+	}
+
 	router := gin.New()
 	router.Use(gin.Recovery(), gin.ErrorLogger())
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    addr,
 		Handler: router,
 	}
 
